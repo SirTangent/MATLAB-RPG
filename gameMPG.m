@@ -1,6 +1,6 @@
 function gameMPG()
     
-    version = '1.0';
+    version = '1.1';
     
     % Main figure for game
     
@@ -21,7 +21,7 @@ function gameMPG()
     game.mapx = []; % Width of the map
     game.mapy = []; % Height of the map
    
-    ent(1) = struct('type','init','posx',0,'posy',0,'hp',100); % All world entities are stored in this var
+    ent(1) = struct('type','init','posx',0,'posy',0,'hp',0); % All world entities are stored in this var
     
     disp('----------------------------------');
     fprintf('Matlab Roleplaying Game (ver %s)\n',version)
@@ -50,11 +50,16 @@ function gameMPG()
         player.hp = 100;
         player.stma = 30;
         player.xp = 0;
-        player.pos = [game.mapx/2,game.mapy/2];
-        player.speed = 4;
+        player.pos = [70,25];
+        player.speed = 2;
         
         %Generate Starting Entities
-        
+        for i = 1:5
+            for j = 1:4
+            ent = spawnCoin20(32+(16*i),110-(16*j),ent);
+            end
+        end
+        ent = spawnCoin50(105,110,ent);
     end
     
     run(game,player,ent,version);
@@ -63,6 +68,10 @@ end
 
 function run(game,player,ent,version)
 
+    def_game = game;
+    def_player = player;
+    def_ent = ent;
+    
     text = strcat(['MATLAB RPG (ver ',version,')']);
     win = figure('Name',text);
     game.running = 1;
@@ -72,25 +81,35 @@ function run(game,player,ent,version)
     [win,game,player,ent] = render(win,game,player,ent);
     
     while game.running == 1
+        % Key Watchdog
         waitforbuttonpress;
         button = get(win,'CurrentCharacter'); 
         if strcmp(button,'w')
         	player.pos(2) = player.pos(2) + player.speed;
-            render(win,game,player,ent);
+            [player,ent] = checkCollisions(player,ent);
+            [win,game,player,ent] = render(win,game,player,ent);
         end
         if strcmp(button,'a')
         	player.pos(1) = player.pos(1) - player.speed;
-            render(win,game,player,ent);
+            [player,ent] = checkCollisions(player,ent);
+            [win,game,player,ent] = render(win,game,player,ent);
         end
         if strcmp(button,'s')
         	player.pos(2) = player.pos(2) - player.speed;
-            render(win,game,player,ent);
+            [player,ent] = checkCollisions(player,ent);
+            [win,game,player,ent] = render(win,game,player,ent);
         end
         if strcmp(button,'d')
         	player.pos(1) = player.pos(1) + player.speed;
-            render(win,game,player,ent);
+            [player,ent] = checkCollisions(player,ent);
+            [win,game,player,ent] = render(win,game,player,ent);
+        end
+        if strcmp(button,'c')
+            disp("Saving Preset...");
+        	gameSave(def_game,def_player,def_ent);
         end
         if strcmp(button,'v')
+            disp("Saving Game...");
         	gameSave(game,player,ent);
         end
         if strcmp(button,'k')
@@ -102,14 +121,36 @@ function run(game,player,ent,version)
     cleanup = onCleanup(@() gameShutdown(game,player,ent,win));
 end
 
-function spawnCoin20(x,y)
+function [ent] = spawnCoin20(x,y,ent)
     ent;
     ent(end+1) = struct('type','coin20','posx',x,'posy',y,'hp',100);
 end
 
-function spawnCoin50(x,y)
+function [ent] = spawnCoin50(x,y,ent)
     ent;
     ent(end+1) = struct('type','coin50','posx',x,'posy',y,'hp',100);
+end
+
+function [player,ent] = checkCollisions(player,ent)
+    count = zeros(1,length(ent));
+    for n = 1:length(ent)
+        if player.pos(1) >= ent(n).posx-4 && player.pos(1) <= ent(n).posx+4 ...
+        && player.pos(2) >= ent(n).posy-4 && player.pos(2) <= ent(n).posy+4 ...
+        && ent(n).hp ~= 0
+            ent(n).hp = 0;
+            if strcmp(ent(n).type,'coin20')
+                player.xp = player.xp + 20;
+            elseif strcmp(ent(n).type,'coin50')
+                player.xp = player.xp + 50;
+            end
+        end
+        count(n) = ent(n).hp == 0;
+    end
+    if all(count)
+        for j = 2:length(ent)
+            ent(j).hp = 100;
+        end
+    end
 end
 
 function [win,game,player,ent] = render(win,game,player,ent)
@@ -128,6 +169,16 @@ function [win,game,player,ent] = render(win,game,player,ent)
     plot(player.pos(1),player.pos(2),'o','MarkerFaceColor',player.colorfill,'MarkerEdgeColor',player.colorborder);
     
     % Render entities
+    for i = 1:length(ent)
+        if ent(i).hp ~= 0
+            switch ent(i).type
+                case 'coin20'
+                    plot(ent(i).posx,ent(i).posy,'o','MarkerFaceColor',[1,.84,0],'MarkerEdgeColor',[.85,.65,.13]);
+                case 'coin50'
+                    plot(ent(i).posx,ent(i).posy,'o','MarkerFaceColor',[.86,.08,.24],'MarkerEdgeColor',[0,0,1]);
+            end
+        end
+    end
     
     %Render Overlay GUI
     text(8,game.mapy-8,player.name,'Color','black','FontSize',14);
@@ -142,6 +193,5 @@ function [win,game,player,ent] = render(win,game,player,ent)
 end
 
 function gameSave(game,player,ent)
-    disp("Saving Game...");
     save('game.mat');
 end
